@@ -1,4 +1,5 @@
 mod bencode;
+mod hash;
 use std::{env, f32::consts::E};
 
 use serde_bencode::to_string;
@@ -6,6 +7,7 @@ use serde_bencode::to_string;
 // Available if you need it!
 // use serde_bencode
 use crate::bencode::*;
+use crate::hash::*;
 use std::fs;
 use std::borrow::Cow;
 
@@ -17,16 +19,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
     let command = &args[1];
 
-    if command == "decode" {
-        // You can use print statements as follows for debugging, they'll be visible when running tests.
-        eprintln!("Logs from your program will appear here!");
-
-        let mut encoded_value = &args[2];
-        let data  = encoded_value.as_bytes();
-        let decoded_value = decode_bencoded_value(&data);
-        println!("{}", decoded_value.to_string());
-    } 
-   else if command == "open" {
+   
+    if command == "open" {
     let input = &args[2];
 
        let data :Vec<u8>= if input.starts_with("http://")||input.starts_with("https://")
@@ -38,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
        };
 
        let decoded = decode_bencoded_value(&data);
-      let (announce,info) = match decoded 
+      let (announce,info) = match decoded.0
        {
         serde_json::Value::Object(map)=>
         {
@@ -49,6 +43,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         _=>panic!("panic in parsing accounce and info")
        };
        print!("announce- {}\ninfo- {}",announce,info);
+       let info_hash = sha1_hashofbytes(decoded.1.unwrap());
+       println!("\n{:?}",url_encode(&info_hash));
+
     }
     else {
         println!("unknown command: {}", args[1])
