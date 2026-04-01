@@ -1,5 +1,6 @@
 mod bencode;
 mod hash;
+mod network;
 use std::{env, f32::consts::E};
 
 use serde_bencode::to_string;
@@ -10,6 +11,7 @@ use crate::bencode::*;
 use crate::hash::*;
 use std::fs;
 use std::borrow::Cow;
+use crate::network::*;
 
 #[allow(dead_code)]
 
@@ -32,19 +34,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
        };
 
        let decoded = decode_bencoded_value(&data);
-      let (announce,info) = match decoded.0
+      let (announce,info,left) = match decoded.0
        {
         serde_json::Value::Object(map)=>
         {
             let ann = map.get("announce").unwrap().clone();
             let inf = map.get("info").unwrap().clone();
-            (ann,inf)
+            let mut length: u64=0;
+            if let Some(len) = inf.get("length")
+            {
+                length = len.as_u64().unwrap();
+            }
+            if let Some(files) = inf.get("files")
+            {
+                for file in files.as_array().expect("files is not an array"){
+                    length += file.get("length").unwrap().as_u64().unwrap();
+                }
+            }
+            (ann,inf,length)
         }
         _=>panic!("panic in parsing accounce and info")
        };
-       print!("announce- {}\ninfo- {}",announce,info);
+       print!("announce- {}\ninfo- {}\nleft- {}",announce,info,left);
        let info_hash = sha1_hashofbytes(decoded.1.unwrap());
        println!("\n{:?}",url_encode(&info_hash));
+       getreq_to_tracker(announce,left,&url_encode(&info_hash)).await?;
 
     }
     else {
