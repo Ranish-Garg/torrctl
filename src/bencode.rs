@@ -1,5 +1,27 @@
 use core::panic;
 
+pub fn decode_bencoded_value(encoded_value: &str) -> serde_json::Value {
+    // If encoded_value starts with a digit, it's a number
+    if encoded_value.chars().next().unwrap()=='i' && encoded_value.chars().last().unwrap()=='e'
+    {
+        decode_integer(&encoded_value)
+    }
+    else if encoded_value.chars().next().unwrap().is_ascii_digit() {
+        // Example: "5:hello" -> "hello"
+       decode_string(&encoded_value)
+    }
+    else if encoded_value.chars().next().unwrap()=='l'
+    {
+        decode_list(&encoded_value)
+    } 
+    else if encoded_value.chars().next().unwrap()=='d'
+    {
+        decode_dict(&encoded_value)
+    }
+    else {
+        panic!("Unhandled encoded value: {}", encoded_value)
+    }
+}
 
 pub fn decode_string(encoded_value: &str)-> serde_json::Value
 {
@@ -82,7 +104,7 @@ pub fn find_dict_end(s:&str)->usize
             }
             'e'=>
             {
-                depth+=1;
+                depth-=1;
                 if depth ==0 
                 {
                     return i;
@@ -98,7 +120,7 @@ pub fn find_dict_end(s:&str)->usize
             }
             'l'=>
             {
-                depth+1;
+                depth+=1;
                 i+=1;
             }
              c if c.is_ascii_digit() => {
@@ -157,8 +179,8 @@ pub fn decode_dict(encoded_value:&str)-> serde_json::Value
                 let end = colon + 1 + len;
                 (decode_string(&newval[..end]), end)
             }
-            _ => panic!("Invalid type"),
-        }
+            _ => panic!("Invalid type")
+        };
         map.insert(key.to_string(), value);
         newval= &newval[consumed_len..];
     }
@@ -211,4 +233,127 @@ pub fn decode_list(encoded_value: &str)-> serde_json::Value
    let result: serde_json::Value = serde_json::Value::Array(values);
    result
 
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_decode_integer() {
+        assert_eq!(decode_bencoded_value("i42e"), json!(42));
+        assert_eq!(decode_bencoded_value("i0e"), json!(0));
+        assert_eq!(decode_bencoded_value("i-42e"), json!(-42));
+    }
+
+    #[test]
+    fn test_decode_string() {
+        assert_eq!(decode_bencoded_value("5:hello"), json!("hello"));
+        assert_eq!(decode_bencoded_value("0:"), json!(""));
+        assert_eq!(decode_bencoded_value("11:hello world"), json!("hello world"));
+    }
+
+    #[test]
+    fn test_decode_list_simple() {
+        assert_eq!(
+            decode_bencoded_value("l5:helloi42ee"),
+            json!(["hello", 42])
+        );
+
+        assert_eq!(
+            decode_bencoded_value("li1ei2ei3ee"),
+            json!([1, 2, 3])
+        );
+    }
+
+    #[test]
+    fn test_decode_list_nested() {
+        assert_eq!(
+            decode_bencoded_value("ll5:helloi42eee"),
+            json!([["hello", 42]])
+        );
+
+        assert_eq!(
+            decode_bencoded_value("l5:hellol5:worldee"),
+            json!(["hello", ["world"]])
+        );
+    }
+
+    #[test]
+    fn test_decode_empty_list() {
+        assert_eq!(decode_bencoded_value("le"), json!([]));
+    }
+
+    #[test]
+    fn test_decode_dict_simple() {
+        assert_eq!(
+            decode_bencoded_value("d3:cow3:moo4:spam4:eggse"),
+            json!({
+                "cow": "moo",
+                "spam": "eggs"
+            })
+        );
+    }
+
+    #[test]
+    fn test_decode_dict_with_int() {
+        assert_eq!(
+            decode_bencoded_value("d3:foo i42ee".replace(" ", "").as_str()),
+            json!({
+                "foo": 42
+            })
+        );
+    }
+
+    #[test]
+    fn test_decode_dict_nested() {
+        assert_eq!(
+            decode_bencoded_value("d4:spaml1:a1:bee"),
+            json!({
+                "spam": ["a", "b"]
+            })
+        );
+
+        assert_eq!(
+            decode_bencoded_value("d3:food3:bar3:bazee"),
+            json!({
+                "foo": {
+                    "bar": "baz"
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn test_decode_empty_dict() {
+        assert_eq!(decode_bencoded_value("de"), json!({}));
+    }
+
+    #[test]
+    fn test_complex_nested_structure() {
+        let input = "d4:dictd3:key5:valuee4:listli1ei2ei3eee";
+        assert_eq!(
+            decode_bencoded_value(input),
+            json!({
+                "dict": { "key": "value" },
+                "list": [1, 2, 3]
+            })
+        );
+    }
+
+    #[test]
+    fn test_string_with_numbers() {
+        assert_eq!(
+            decode_bencoded_value("4:1234"),
+            json!("1234")
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_input() {
+        decode_bencoded_value("invalid");
+    }
 }
