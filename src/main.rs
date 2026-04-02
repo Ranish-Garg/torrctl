@@ -1,6 +1,7 @@
 mod bencode;
 mod hash;
 mod network;
+mod peer;
 use std::{env, f32::consts::E};
 
 use serde_bencode::to_string;
@@ -12,6 +13,7 @@ use crate::hash::*;
 use std::fs;
 use std::borrow::Cow;
 use crate::network::*;
+use crate::peer::*;
 
 #[allow(dead_code)]
 
@@ -60,6 +62,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
        let response  = getreq_to_tracker(announce,left,&url_encode(&info_hash)).await?;
        let decoded_res = decode_bencoded_value(&response);
        println!("Decoded response from tracker---\n {:?}",decoded_res.0);
+       let t = decoded_res.0.get("peers").unwrap();
+       let ip_and_port = parse_peer(t);
+       println!("IP and PORT of peers---\n{:?}",ip_and_port);
+
+       let addr:String = format!("{}:{}",ip_and_port[0].0,ip_and_port[0].1);
+       build_handshake(&addr,&info_hash);
+ 
+
     }
     else {
         println!("unknown command: {}", args[1])
