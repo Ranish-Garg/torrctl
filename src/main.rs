@@ -55,11 +55,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         _=>panic!("panic in parsing accounce and info")
        };
-       print!("announce- {}\ninfo- {}\nleft- {}",announce,info,left);
+       print!("Result from .torrent file---\nannounce- {}\ninfo- {}\nleft- {}\n\n",announce,info,left);
        let info_hash = sha1_hashofbytes(decoded.1.unwrap());
-       println!("\n{:?}",url_encode(&info_hash));
-       getreq_to_tracker(announce,left,&url_encode(&info_hash)).await?;
-
+       let response  = getreq_to_tracker(announce,left,&url_encode(&info_hash)).await?;
+       let decoded_res = decode_bencoded_value(&response);
+       println!("Decoded response from tracker---\n {:?}",decoded_res.0);
     }
     else {
         println!("unknown command: {}", args[1])

@@ -1,5 +1,5 @@
 
-pub async fn getreq_to_tracker(announce:serde_json::Value,left:u64,info_encoded:&String)->Result<(), Box<dyn std::error::Error>> {
+pub async fn getreq_to_tracker(announce:serde_json::Value,left:u64,info_encoded:&String)->Result<Vec<u8>, Box<dyn std::error::Error>> {
     let url = format!(
     "{}?info_hash={}&peer_id={}&port=6881&uploaded=0&downloaded=0&left={}&compact=1",
     announce.as_str().unwrap(),
@@ -14,5 +14,6 @@ pub async fn getreq_to_tracker(announce:serde_json::Value,left:u64,info_encoded:
         .await?;
 
     println!("body = {:?}", body);
-    Ok(())
+    let res = body.into_bytes();
+    Ok(res)
 }
