@@ -67,8 +67,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
        println!("IP and PORT of peers---\n{:?}",ip_and_port);
 
        let addr:String = format!("{}:{}",ip_and_port[0].0,ip_and_port[0].1);
-       build_handshake(&addr,&info_hash);
- 
+       
+        let res = run_peer(&addr, &info_hash);
+
+        println!("{:?}",res);
+       
 
     }
     else {
