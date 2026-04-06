@@ -1,4 +1,4 @@
-use sha1::{Sha1, Digest};
+use sha1::{Digest, Sha1};
 
 pub fn sha1_hashofbytes(data: &[u8]) -> Vec<u8> {
     let mut hasher = Sha1::new();

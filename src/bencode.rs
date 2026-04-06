@@ -1,6 +1,5 @@
 use serde_json::{Number, Value};
 
-
 pub fn decode_bencoded_value(encoded: &[u8]) -> (Value, Option<&[u8]>) {
     if encoded.is_empty() {
         return (Value::Null, None);
@@ -14,8 +13,6 @@ pub fn decode_bencoded_value(encoded: &[u8]) -> (Value, Option<&[u8]>) {
         _ => (Value::Null, None),
     }
 }
-
-
 
 fn parse_string_slice(s: &[u8]) -> Option<(&[u8], usize)> {
     let colon = s.iter().position(|&b| b == b':')?;
@@ -42,8 +39,6 @@ pub fn decode_string(encoded: &[u8]) -> Value {
     }
 }
 
-
-
 pub fn decode_integer(encoded: &[u8]) -> Value {
     if encoded.len() < 3 {
         return Value::Null;
@@ -51,13 +46,14 @@ pub fn decode_integer(encoded: &[u8]) -> Value {
 
     let s = &encoded[1..encoded.len() - 1];
 
-    match std::str::from_utf8(s).ok().and_then(|v| v.parse::<i64>().ok()) {
+    match std::str::from_utf8(s)
+        .ok()
+        .and_then(|v| v.parse::<i64>().ok())
+    {
         Some(num) => Value::Number(Number::from(num)),
         None => Value::Null,
     }
 }
-
-
 
 pub fn find_list_end(s: &[u8]) -> Option<usize> {
     let mut depth = 0;
@@ -84,7 +80,7 @@ pub fn find_list_end(s: &[u8]) -> Option<usize> {
                 i += 1;
             }
             b'0'..=b'9' => {
-                let ( _, consumed) = parse_string_slice(&s[i..])?;
+                let (_, consumed) = parse_string_slice(&s[i..])?;
                 i += consumed;
             }
             _ => return None,
@@ -97,8 +93,6 @@ pub fn find_dict_end(s: &[u8]) -> Option<usize> {
     find_list_end(s) // same logic works
 }
 
-
-
 pub fn decode_dict(encoded: &[u8]) -> (Value, Option<&[u8]>) {
     let mut map = serde_json::Map::new();
     let mut newval = &encoded[1..];
@@ -106,7 +100,6 @@ pub fn decode_dict(encoded: &[u8]) -> (Value, Option<&[u8]>) {
     let mut info_bytes: Option<&[u8]> = None;
 
     while !newval.is_empty() && newval[0] != b'e' {
-       
         let (key_bytes, consumed) = match parse_string_slice(newval) {
             Some(v) => v,
             None => break,
@@ -119,14 +112,12 @@ pub fn decode_dict(encoded: &[u8]) -> (Value, Option<&[u8]>) {
 
         newval = &newval[consumed..];
 
-        
         if key == "info" {
             if let Some(end) = find_dict_end(newval) {
                 info_bytes = Some(&newval[..end + 1]);
             }
         }
 
-     
         if key == "pieces" {
             if let Some((data, consumed)) = parse_string_slice(newval) {
                 let pieces: Vec<Value> = data
@@ -204,8 +195,6 @@ pub fn decode_dict(encoded: &[u8]) -> (Value, Option<&[u8]>) {
 
     (Value::Object(map), info_bytes)
 }
-
-
 
 pub fn decode_list(encoded: &[u8]) -> (Value, Option<&[u8]>) {
     let mut values = Vec::new();

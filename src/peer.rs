@@ -87,9 +87,8 @@ pub fn run_peer(addr: &str, info_hash: &[u8]) -> Result<(), Box<dyn std::error::
                 }
 
                 Message::Have(piece) => {
-
-                     if selected_piece.is_none() {
-                         selected_piece = Some(piece);
+                    if selected_piece.is_none() {
+                        selected_piece = Some(piece);
                     }
                     if !is_interested {
                         send_interested(&mut stream)?;
@@ -106,17 +105,13 @@ pub fn run_peer(addr: &str, info_hash: &[u8]) -> Result<(), Box<dyn std::error::
             }
         }
         if is_unchoked {
-            if selected_piece.is_some()
-            {
-                if(is_sent==false)
-                {
-                     println!("Sending request for piece {:?}",selected_piece);
-                    request_piece(&mut stream,selected_piece.unwrap() )?;
-                    is_sent=true;
+            if selected_piece.is_some() {
+                if (is_sent == false) {
+                    println!("Sending request for piece {:?}", selected_piece);
+                    request_piece(&mut stream, selected_piece.unwrap())?;
+                    is_sent = true;
                 }
-               
             }
-           
         }
     }
 
