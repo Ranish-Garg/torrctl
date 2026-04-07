@@ -33,10 +33,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         let decoded = decode_bencoded_value(&data);
-        let (mut tracker, info, left) = match decoded.0 {
+        let (mut tracker, info, left,piece_length) = match decoded.0 {
             serde_json::Value::Object(map) => {
                 let ann = map.get("announce-list").unwrap().clone();
                 let inf = map.get("info").unwrap().clone();
+                let piece_length = inf
+                .get("piece length")
+                .unwrap()
+                .as_u64()
+                .unwrap();
                 let mut length: u64 = 0;
                 if let Some(len) = inf.get("length") {
                     length = len.as_u64().unwrap();
@@ -46,9 +51,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         length += file.get("length").unwrap().as_u64().unwrap();
                     }
                 }
-                (ann, inf, length)
+                (ann, inf, length,piece_length)
             }
             _ => panic!("panic in parsing accounce and info"),
+        };
+
+       let num_pieces: usize = match decoded.0 {
+        serde_json::Value::Object(map) => {
+        let info = map.get("info").expect("missing info");
+
+        let pieces = info.get("pieces").expect("missing pieces");
+
+        match pieces {
+            serde_json::Value::Array(arr) => arr.len(),
+            _ => panic!("pieces is not array"),
+        }
+        }
+            _ => panic!("invalid torrent format"),
         };
 
         if let Some(arr) = tracker.as_array_mut() {
@@ -64,6 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )]));
             }
         }
+
         print!(
             "Result from .torrent file---\nannounce-list- {}\ninfo- {}\nleft- {}\n\n",
             tracker, info, left
@@ -135,9 +155,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         println!("{:?}", peers);
 
-    //    let addr:String = format!("{}:{}",ip_and_port[0].0,ip_and_port[0].1);
+    
 
-    //     let res = run_peer(&addr, &info_hash);
+    //   let res = run_peer(&addr, &info_hash);
 
     //     println!("{:?}",res);
     } else {
