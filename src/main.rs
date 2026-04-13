@@ -2,6 +2,7 @@ mod bencode;
 mod hash;
 mod network;
 mod peer;
+use std::clone;
 use std::{env, f32::consts::E};
 
 use serde_bencode::to_string;
@@ -33,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         let decoded = decode_bencoded_value(&data);
-        let (mut tracker, info, left,piece_length) = match decoded.0 {
+        let (mut tracker, info, left,piece_length) = match &decoded.0 {
             serde_json::Value::Object(map) => {
                 let ann = map.get("announce-list").unwrap().clone();
                 let inf = map.get("info").unwrap().clone();
@@ -56,7 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             _ => panic!("panic in parsing accounce and info"),
         };
 
-       let num_pieces: usize = match decoded.0 {
+       let num_pieces: usize = match &decoded.0 {
         serde_json::Value::Object(map) => {
         let info = map.get("info").expect("missing info");
 
@@ -153,13 +154,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        println!("{:?}", peers);
+       println!("Number of peers - {:?}", peers.len());
+
+       let res = run_client(peers,left as u32,num_pieces as u32 ,piece_length as u32,info_hash);
+
+        
 
     
-
-    //   let res = run_peer(&addr, &info_hash);
-
-    //     println!("{:?}",res);
     } else {
         println!("unknown command: {}", args[1])
     }
