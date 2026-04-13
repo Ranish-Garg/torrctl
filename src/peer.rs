@@ -7,6 +7,9 @@ use bytes::BufMut;
 use std::thread;
 use std::sync::{Arc, Mutex};
 use std::io::Read;
+use std::fs::File;
+use std::io::prelude::*;
+use tokio::io::SeekFrom;
 
 
 use crate::network::perform_handshake;
@@ -116,9 +119,6 @@ pub fn read_message(stream:&mut TcpStream)->Result<Message>
 
 }
 
-
-
-
  
 pub struct piece_buffer{
     data:Vec<u8>,
@@ -128,14 +128,17 @@ const BLOCK_SIZE: usize = 16 * 1024; // 16 KB
 
 fn run_client(peers:HashSet<(String, u16)>,total_length:u32,number_of_pieces:u32,piece_length:u32,info_hash:Vec<u8>)->Result<()>
 {
+    let mut cfile = File::create("file")?;
+    let file = Arc::new(Mutex::new(cfile));
     let bitfield = Arc::new(Mutex::new(vec![false; number_of_pieces as usize]));
     let inprogress:Arc<Mutex<HashMap<u32,piece_buffer>>> = Arc::new(Mutex::new(HashMap::new()));
     let info_hash = Arc::new(info_hash);
 
     for item in peers{
         let bitfield = Arc::clone(&bitfield);
-        let inprogress = Arc::clone(&inprogress);
+        let inprogress: Arc<Mutex<HashMap<u32, piece_buffer>>> = Arc::clone(&inprogress);
         let info_hash = Arc::clone(&info_hash);
+        let file = Arc::clone(&file);
         thread::spawn(move ||{
             
             let mut peer_piece:HashSet<u32> = HashSet::new();
@@ -188,6 +191,7 @@ fn run_client(peers:HashSet<(String, u16)>,total_length:u32,number_of_pieces:u32
                     Message::Piece { index, begin, block }=>
                     {
                         let mut hashmp = inprogress.lock().unwrap();
+                        let mut bitfield = bitfield.lock().unwrap();
                         if(hashmp.contains_key(&index))
                         {
                             let pb = hashmp.get_mut(&index).unwrap();
@@ -196,6 +200,20 @@ fn run_client(peers:HashSet<(String, u16)>,total_length:u32,number_of_pieces:u32
                             pb.data[begin..begin+len].copy_from_slice(&block);
                             let block_index = begin / BLOCK_SIZE;
                             pb.received[block_index] = true;
+                            if checkpiececompletion(&index,&*hashmp) == Some(true){
+                                let mut file = file.lock().unwrap();
+                                 let data = &hashmp[&index].data;
+                                let global_offset = (index*piece_length) as u64;
+                                file.seek(SeekFrom::Start(global_offset));
+                                file.write_all(data);
+
+
+                                hashmp.remove(&index);
+                                bitfield[index as usize]=true;
+                            }
+                            else {
+                                
+                            }
                         }
                         else {
                             eprintln!("Received block for untracked piece {}", index);  
@@ -240,6 +258,21 @@ fn run_client(peers:HashSet<(String, u16)>,total_length:u32,number_of_pieces:u32
                             };
                             inprogress.insert(piece,piece_buffer { data: vec![0u8;piece_size], received: vec![false;num_blocks] });
 
+                            for item in 0..num_blocks
+                            {
+                                let blocksz = if item ==num_blocks-1
+                                {
+                                    (piece_size%BLOCK_SIZE) as u32
+                                }
+                                else {
+                                    BLOCK_SIZE as u32
+                                };
+                                if inprogress[&piece].received[item]==false{
+                                    let offset = (item*BLOCK_SIZE) as u32;
+                                    request_block(&mut stream,piece,offset,blocksz);
+                                }
+                                
+                            }
 
                        }
                     }
@@ -268,13 +301,15 @@ fn pick_piece(peer_piece: &HashSet<u32>, bitfield: &Vec<bool>) -> Option<u32> {
     None
 }
 
-fn request_block(stream:&mut TcpStream,index:u32,begin:u32)->Result<()>
+fn request_block(stream:&mut TcpStream,index:u32,begin:u32,blocksz:u32)->Result<()>
 {
     let mut bytes = 13u32.to_be_bytes().to_vec();
     bytes.push(6);
    bytes.extend_from_slice(&index.to_be_bytes());
    bytes.extend_from_slice(&begin.to_be_bytes());
-    bytes.extend_from_slice(&(BLOCK_SIZE as u32).to_be_bytes());
+    bytes.extend_from_slice(&blocksz.to_be_bytes());
+
+    // bytes.extend_from_slice(&(BLOCK_SIZE as u32).to_be_bytes());
 
     stream.write_all(&bytes).unwrap();
     Ok(())
@@ -291,3 +326,21 @@ pub fn send_interested(stream: &mut TcpStream) -> Result<()> {
 }
 
 
+fn checkpiececompletion(index:&u32,inprogress:& HashMap<u32, piece_buffer>)->Option<bool>
+{
+    let received_vec= &inprogress[index].received;
+    for &value in received_vec{
+        if value == false{
+            return Some(false)
+        }
+    }
+    //todo: shahash
+    // let data = &inprogress[index].data;
+
+
+    // inprogress.remove(index);
+    
+    // bitfield[*index]=true;
+
+    Some(true)
+}
